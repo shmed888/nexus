@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111214">
+  <meta name="description" content="Nexus — личное пространство для общения.">
+  <title>Nexus — Messenger</title>
+  <link rel="icon" href="/assets/nexus-mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/css/app.css">
+  <script defer src="/socket.io/socket.io.js"></script>
+  <script type="module" src="/js/app.js"></script>
+</head>
+<body>
+  <div id="auth-screen" class="auth-screen" hidden>
+    <section class="auth-brand">
+      <a class="brand brand-large" href="/" aria-label="Nexus"><span class="brand-symbol">N</span><span>Nexus</span></a>
+      <div class="auth-brand-copy"><span class="eyebrow" data-i18n="auth.eyebrow">YOUR SPACE, YOUR PEOPLE</span><h1 data-i18n="auth.headline">Общение без лишнего.</h1><p data-i18n="auth.subheadline">Личные разговоры. Настоящее время. Ничего лишнего.</p></div>
+      <span class="auth-footnote">NEXUS / PRIVATE MESSAGING</span>
+    </section>
+    <section class="auth-panel">
+      <div class="auth-top"><span class="status-dot"></span><span data-i18n="auth.local">Ваше пространство для общения</span><button class="icon-button language-toggle" id="auth-language" type="button" aria-label="Change language">EN</button></div>
+      <div class="auth-card">
+        <div class="auth-tabs" role="tablist"><button class="auth-tab is-active" data-auth-tab="login" type="button" data-i18n="auth.loginTab">Войти</button><button class="auth-tab" data-auth-tab="register" type="button" data-i18n="auth.registerTab">Создать аккаунт</button></div>
+        <form id="login-form" class="auth-form">
+          <div><span class="eyebrow" data-i18n="auth.welcome">С возвращением</span><h2 data-i18n="auth.loginTitle">Рады вас видеть.</h2><p class="muted" data-i18n="auth.loginDescription">Войдите, чтобы продолжить общение.</p></div>
+          <label><span data-i18n="field.username">Username</span><input name="username" autocomplete="username" placeholder="your.username" required minlength="3" maxlength="32"></label>
+          <label><span data-i18n="field.password">Пароль</span><input name="password" type="password" autocomplete="current-password" required minlength="8" maxlength="128"></label>
+          <button class="button button-primary button-wide" type="submit" data-i18n="auth.loginAction">Войти в Nexus <span aria-hidden="true">↗</span></button>
+          <button class="text-button" id="show-recovery" type="button" data-i18n="auth.forgot">Забыли пароль?</button>
+        </form>
+        <form id="register-form" class="auth-form" hidden>
+          <div><span class="eyebrow" data-i18n="auth.startHere">НАЧНИТЕ ЗДЕСЬ</span><h2 data-i18n="auth.registerTitle">Создайте аккаунт.</h2><p class="muted" data-i18n="auth.registerDescription">Почта не нужна. Запомните секрет восстановления.</p></div>
+          <label><span data-i18n="field.username">Username</span><input name="username" autocomplete="username" placeholder="your.username" required minlength="3" maxlength="32" pattern="@?[A-Za-z0-9._]+"><small data-i18n="auth.usernameHint">От 3 до 32 символов: буквы, цифры, точка, подчёркивание.</small></label>
+          <label><span data-i18n="field.displayName">Отображаемое имя</span><input name="displayName" autocomplete="nickname" required minlength="1" maxlength="60" placeholder="Alex"></label>
+          <label><span data-i18n="field.password">Пароль</span><input name="password" type="password" autocomplete="new-password" required minlength="8" maxlength="128"></label>
+          <label><span data-i18n="field.recoverySecret">Секрет восстановления</span><input name="recoverySecret" type="password" autocomplete="off" required minlength="8" maxlength="128"><small data-i18n="auth.recoveryHint">Не менее 8 символов. Без него сбросить пароль будет невозможно.</small></label>
+          <button class="button button-primary button-wide" type="submit" data-i18n="auth.createAction">Создать аккаунт <span aria-hidden="true">↗</span></button>
+        </form>
+        <form id="recovery-form" class="auth-form" hidden>
+          <div><span class="eyebrow" data-i18n="auth.accountRecovery">ACCOUNT RECOVERY</span><h2 data-i18n="auth.recoveryTitle">Вернём доступ.</h2><p class="muted" data-i18n="auth.recoveryDescription">Введите username и сохранённый секрет восстановления.</p></div>
+          <label><span data-i18n="field.username">Username</span><input name="username" required autocomplete="username"></label>
+          <label><span data-i18n="field.recoverySecret">Секрет восстановления</span><input name="recoverySecret" required type="password" minlength="8"></label>
+          <label><span data-i18n="field.newPassword">Новый пароль</span><input name="newPassword" required type="password" minlength="8" maxlength="128" autocomplete="new-password"></label>
+          <button class="button button-primary button-wide" type="submit" data-i18n="auth.resetAction">Сбросить пароль</button>
+          <button class="text-button" id="back-to-login" type="button" data-i18n="auth.backLogin">Вернуться ко входу</button>
+        </form>
+        <div id="auth-error" class="form-message" role="status" aria-live="polite"></div>
+        <div class="auth-legal" data-i18n="auth.privacyNote">Nexus не использует email для восстановления. Пароли хранятся в виде хеша.</div>
+      </div>
+    </section>
+  </div>
+
+  <div id="app-shell" class="app-shell" hidden>
+    <aside class="rail" aria-label="Main navigation">
+      <a class="brand" href="#chats" aria-label="Nexus home"><span class="brand-symbol">N</span></a>
+      <nav class="rail-nav">
+        <button class="rail-button is-active" data-view="chats" title="Chats" aria-label="Chats"><svg viewBox="0 0 24 24"><path d="M4 5.5h16v11H9l-5 3v-14Z"/><path d="M8 9h8M8 13h5"/></svg><span data-i18n="nav.chats">Чаты</span></button>
+        <button class="rail-button" data-view="contacts" title="Contacts" aria-label="Contacts"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c.5-3.2 2.4-4.8 5.5-4.8s5 1.6 5.5 4.8M16 5.5a3 3 0 0 1 0 5.8M17 14.5c2.2.6 3.4 2 3.7 4.5"/></svg><span data-i18n="nav.contacts">Контакты</span></button>
+        <button class="rail-button" data-view="groups" title="Groups" aria-label="Groups"><svg viewBox="0 0 24 24"><circle cx="8" cy="8" r="2.6"/><circle cx="16.5" cy="9" r="2.2"/><path d="M2.8 19c.4-3.1 2.1-4.6 5.2-4.6s4.8 1.5 5.2 4.6M14 14.8c3.7-.6 6.1.9 6.8 4.2"/></svg><span data-i18n="nav.groups">Группы</span></button>
+        <button class="rail-button" data-view="channels" title="Channels" aria-label="Channels"><svg viewBox="0 0 24 24"><path d="M4 5h16v14H4zM8 9h8M8 13h5"/><path d="m7 5 2-2h6l2 2"/></svg><span data-i18n="nav.channels">Каналы</span></button>
+        <button class="rail-button" data-view="saved" title="Saved" aria-label="Saved messages"><svg viewBox="0 0 24 24"><path d="M6 4.5h12v16l-6-3.8-6 3.8z"/><path d="M9 8h6"/></svg><span data-i18n="nav.saved">Сохранённое</span></button>
+        <button class="rail-button" data-view="archive" title="Archive" aria-label="Archive"><svg viewBox="0 0 24 24"><path d="M4 7h16v13H4zM3 3.5h18v3.5H3zM9 11h6"/></svg><span data-i18n="nav.archive">Архив</span></button>
+      </nav>
+      <div class="rail-bottom"><button class="rail-button" data-view="settings" title="Settings" aria-label="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="m19.4 15 .1.1 1.1 1.8-1.8 3.1-2.1-.3a7.6 7.6 0 0 1-1.5.9l-.8 1.9h-3.6L10 20.6a7.6 7.6 0 0 1-1.5-.9l-2.1.3-1.8-3.1 1.1-1.8a7.2 7.2 0 0 1 0-1.8l-1.1-1.8 1.8-3.1 2.1.3A7.6 7.6 0 0 1 10 7.8l.8-1.9h3.6l.8 1.9a7.6 7.6 0 0 1 1.5.9l2.1-.3 1.8 3.1-1.1 1.8a7.2 7.2 0 0 1-.1 1.7Z" transform="translate(-1 -1) scale(1.05)"/></svg><span data-i18n="nav.settings">Настройки</span></button><button id="me-avatar" class="rail-avatar" aria-label="Profile"><span>—</span></button></div>
+    </aside>
+
+    <aside class="sidebar" id="sidebar">
+      <header class="sidebar-header">
+        <div class="sidebar-title-row"><div><div class="eyebrow" data-i18n="app.workspace">YOUR WORKSPACE</div><h1 id="sidebar-title" data-i18n="nav.chats">Чаты</h1></div><button id="create-menu" class="icon-button" title="Create" aria-label="Create new chat or group"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg></button></div>
+        <label class="search-box"><svg viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.5 4.5"/></svg><input id="global-search" type="search" placeholder="Поиск чатов и людей" data-i18n-placeholder="search.placeholder" autocomplete="off"><kbd>/</kbd></label>
+        <div class="filter-row" id="chat-filters"><button class="filter-chip is-active" data-filter="all" data-i18n="filters.all">Все</button><button class="filter-chip" data-filter="unread" data-i18n="filters.unread">Непрочитанные</button><button class="filter-chip" data-filter="pinned" data-i18n="filters.pinned">Закреплённые</button></div>
+      </header>
+      <div class="list-heading"><span id="list-label" data-i18n="list.recent">НЕДАВНИЕ</span><span id="list-count" class="muted">0</span></div>
+      <div id="side-list" class="side-list" aria-live="polite"><div class="list-loading"><span class="spinner"></span><span data-i18n="common.loading">Загрузка…</span></div></div>
+      <footer class="sidebar-footer"><span class="connection-indicator" id="connection-dot"></span><span id="connection-label" data-i18n="connection.connecting">Подключение…</span><span class="sidebar-footer-right">NEXUS 0.1</span></footer>
+    </aside>
+
+    <main class="workspace" id="workspace">
+      <section id="empty-state" class="empty-state"><div class="empty-symbol"><span></span><span></span><span></span></div><span class="eyebrow" data-i18n="empty.kicker">YOUR SPACE TO TALK</span><h2 data-i18n="empty.title">Начните общение</h2><p data-i18n="empty.description">Выберите диалог или найдите человека по username, чтобы написать первым.</p><button class="button button-secondary" id="empty-new-chat" data-i18n="empty.action">Новое сообщение <span aria-hidden="true">↗</span></button></section>
+      <section id="chat-view" class="chat-view" hidden>
+        <header class="chat-header">
+          <button id="mobile-back" class="icon-button mobile-back" aria-label="Back to chats"><svg viewBox="0 0 24 24"><path d="m15 5-7 7 7 7"/></svg></button>
+          <button id="chat-person" class="chat-person" type="button"><span id="chat-avatar" class="avatar avatar-medium">N</span><span class="person-meta"><strong id="chat-name">—</strong><small id="chat-status"> </small></span></button>
+          <div class="chat-header-actions"><button id="search-in-chat" class="icon-button" title="Search conversation" aria-label="Search conversation"><svg viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.5 4.5"/></svg></button><button id="start-audio-call" class="icon-button" title="Voice call" aria-label="Voice call"><svg viewBox="0 0 24 24"><path d="M7 3.5 10 7l-2 2.5a13 13 0 0 0 6.5 6.5l2.5-2 3.5 3c.2.2.2.6 0 .9l-1.8 2c-.5.6-1.3.9-2.1.7C9.5 19 5 14.5 3.4 7.4c-.2-.8.1-1.6.7-2.1l2-1.8c.3-.2.7-.2.9 0Z"/></svg></button><button id="start-video-call" class="icon-button" title="Video call" aria-label="Video call"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="12" height="12" rx="2"/><path d="m15 10 6-3v10l-6-3"/></svg></button><button id="chat-more" class="icon-button" title="More" aria-label="More options"><svg viewBox="0 0 24 24"><circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/></svg></button></div>
+        </header>
+        <div id="chat-search-row" class="chat-search-row" hidden><input id="chat-search-input" type="search" placeholder="Найти в переписке"><button id="chat-search-close" class="icon-button" aria-label="Close search">×</button></div>
+        <div id="message-list" class="message-list" role="log" aria-live="polite" aria-relevant="additions text"></div>
+        <div id="typing-label" class="typing-label" hidden></div>
+        <div id="reply-strip" class="reply-strip" hidden><div><small data-i18n="message.replying">Ответ на сообщение</small><span id="reply-preview"></span></div><button id="reply-cancel" class="icon-button" aria-label="Cancel reply">×</button></div>
+        <div id="upload-strip" class="upload-strip" hidden><span id="upload-name">file</span><div class="upload-progress"><span id="upload-progress-fill"></span></div><button id="upload-cancel" class="icon-button" aria-label="Cancel upload">×</button></div>
+        <form id="composer-form" class="composer-wrap">
+          <input type="file" id="attachment-input" hidden>
+          <button type="button" id="attach-button" class="composer-icon" title="Attach a file" aria-label="Attach a file"><svg viewBox="0 0 24 24"><path d="m8 12.5 6.8-6.8a3.5 3.5 0 0 1 5 5l-8.5 8.5a5.3 5.3 0 0 1-7.5-7.5l8-8"/></svg></button>
+          <textarea id="message-input" rows="1" placeholder="Напишите сообщение…" data-i18n-placeholder="composer.placeholder" aria-label="Message" maxlength="4000"></textarea>
+          <button type="button" id="record-voice" class="composer-icon" title="Record a voice message" aria-label="Record voice message"><svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3M8.5 21h7"/></svg></button>
+          <button type="submit" id="send-button" class="send-button" aria-label="Send message" disabled><svg viewBox="0 0 24 24"><path d="m4 5 16 7-16 7 3-7-3-7Z"/><path d="M7 12h13"/></svg></button>
+        </form>
+        <div class="composer-hint"><span data-i18n="composer.enterHint">Enter — отправить</span><span data-i18n="composer.shiftHint">Shift + Enter — новая строка</span></div>
+      </section>
+      <section id="detail-view" class="detail-view" hidden></section>
+    </main>
+  </div>
+
+  <div id="toast-region" class="toast-region" role="status" aria-live="polite"></div>
+  <div id="context-menu" class="context-menu" hidden></div>
+  <div id="modal-root"></div>
+  <div id="call-overlay" class="call-overlay" hidden></div>
+</body>
+</html>

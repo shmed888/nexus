@@ -1,0 +1,36 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: nexus
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nexus_local_only}
+      POSTGRES_DB: nexus
+    volumes:
+      - nexus_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nexus -d nexus"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      HOST: 0.0.0.0
+      PORT: 3000
+      PUBLIC_ORIGIN: http://127.0.0.1:3000
+      DATABASE_URL: postgresql://nexus:${POSTGRES_PASSWORD:-nexus_local_only}@db:5432/nexus?schema=public
+      APP_SECRET: ${APP_SECRET:-development-only-change-me-please-32-chars}
+      UPLOAD_DIR: ./server/data/uploads
+    ports:
+      - "${PORT:-3000}:3000"
+    volumes:
+      - nexus_uploads:/app/server/data/uploads
+volumes:
+  nexus_pgdata:
+  nexus_uploads:

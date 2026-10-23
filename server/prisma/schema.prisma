@@ -1,0 +1,238 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ChatType {
+  DIRECT
+  GROUP
+  CHANNEL
+  SAVED
+}
+
+enum MemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+  SUBSCRIBER
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  VIDEO
+  AUDIO
+  VOICE
+  FILE
+  SYSTEM
+}
+
+model User {
+  id                 String       @id @default(cuid())
+  username           String       @unique @db.VarChar(32)
+  displayName        String       @db.VarChar(60)
+  passwordHash       String
+  recoveryHash       String
+  avatarPath         String?
+  bio                String       @default("") @db.VarChar(160)
+  lastSeenAt         DateTime     @default(now())
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  usernameChangedAt  DateTime?
+  deletionScheduledAt DateTime?
+  sessions           Session[]
+  memberships        ChatMember[]
+  sentMessages       Message[]
+  contacts           Contact[]    @relation("ContactOwner")
+  receivedContacts   Contact[]    @relation("ContactTarget")
+  blocksMade         Block[]      @relation("Blocker")
+  blocksReceived     Block[]      @relation("Blocked")
+  reactions          Reaction[]
+  reads              MessageRead[]
+  hiddenMessages     MessageHidden[]
+  savedMessages      SavedMessage[]
+  invitations        Invitation[]
+
+  @@index([createdAt])
+  @@index([deletionScheduledAt])
+}
+
+model Session {
+  id         String   @id @default(cuid())
+  userId     String
+  tokenHash  String   @unique
+  userAgent  String   @default("") @db.VarChar(300)
+  ipAddress  String   @default("") @db.VarChar(80)
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt, expiresAt])
+}
+
+model Chat {
+  id          String       @id @default(cuid())
+  type        ChatType    @default(DIRECT)
+  title       String?      @db.VarChar(80)
+  description String       @default("") @db.VarChar(300)
+  avatarPath  String?
+  directKey   String?      @unique
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  members     ChatMember[]
+  messages    Message[]
+  invitations Invitation[]
+
+  @@index([type, updatedAt])
+}
+
+model ChatMember {
+  id         String     @id @default(cuid())
+  chatId     String
+  userId     String
+  role       MemberRole @default(MEMBER)
+  joinedAt   DateTime   @default(now())
+  lastReadAt DateTime?
+  archivedAt DateTime?
+  pinnedAt   DateTime?
+  mutedUntil DateTime?
+  chat       Chat       @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([chatId, userId])
+  @@index([userId, archivedAt, pinnedAt])
+  @@index([chatId, joinedAt])
+}
+
+model Message {
+  id          String        @id @default(cuid())
+  chatId      String
+  senderId    String?
+  clientId    String?       @db.VarChar(80)
+  content     String        @default("") @db.VarChar(4000)
+  type        MessageType   @default(TEXT)
+  replyToId   String?
+  forwardedFromId String?
+  createdAt   DateTime      @default(now())
+  editedAt    DateTime?
+  deletedAt   DateTime?
+  pinnedAt    DateTime?
+  chat        Chat          @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  sender      User?         @relation(fields: [senderId], references: [id], onDelete: SetNull)
+  replyTo     Message?      @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies     Message[]     @relation("MessageReplies")
+  attachment  Attachment?
+  reactions   Reaction[]
+  reads       MessageRead[]
+  hiddenFor   MessageHidden[]
+  savedBy     SavedMessage[]
+
+  @@unique([chatId, senderId, clientId])
+  @@index([chatId, createdAt(sort: Desc), id])
+  @@index([senderId, createdAt])
+}
+
+model Attachment {
+  id           String   @id @default(cuid())
+  messageId    String   @unique
+  storageName  String   @unique
+  originalName String   @db.VarChar(255)
+  mimeType     String   @db.VarChar(120)
+  sizeBytes    Int
+  createdAt    DateTime @default(now())
+  message      Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+}
+
+model Reaction {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  emoji     String   @db.VarChar(16)
+  createdAt DateTime @default(now())
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
+}
+
+model MessageRead {
+  id          String   @id @default(cuid())
+  messageId   String
+  userId      String
+  deliveredAt DateTime?
+  readAt      DateTime?
+  message     Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([userId, readAt])
+}
+
+model MessageHidden {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  createdAt DateTime @default(now())
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+}
+
+model Contact {
+  id        String   @id @default(cuid())
+  ownerId   String
+  targetId  String
+  createdAt DateTime @default(now())
+  owner     User     @relation("ContactOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  target    User     @relation("ContactTarget", fields: [targetId], references: [id], onDelete: Cascade)
+
+  @@unique([ownerId, targetId])
+  @@index([ownerId, createdAt])
+}
+
+model Block {
+  id        String   @id @default(cuid())
+  blockerId String
+  blockedId String
+  createdAt DateTime @default(now())
+  blocker   User     @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked   User     @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockedId, blockerId])
+}
+
+model Invitation {
+  id         String   @id @default(cuid())
+  chatId     String
+  createdById String
+  tokenHash  String   @unique
+  expiresAt  DateTime
+  maxUses    Int      @default(1)
+  uses       Int      @default(0)
+  createdAt  DateTime @default(now())
+  chat       Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  createdBy  User     @relation(fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([chatId, expiresAt])
+}
+
+model SavedMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  messageId String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message   Message  @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, messageId])
+  @@index([userId, createdAt(sort: Desc)])
+}
